@@ -1,0 +1,486 @@
+<!DOCTYPE html>
+<html lang="es-MX" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Análisis de Ganancias en Marketplaces + Promociones IA</title>
+  <!-- Bootstrap 5.3 -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+  <!-- Bootstrap Icons -->
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+  <!-- DataTables con tema Bootstrap 5 -->
+  <link href="https://cdn.datatables.net/1.13.8/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+
+  <!-- ============ SIDEBAR ============ -->
+  <nav id="sidebar" class="sidebar">
+    <div class="sidebar-brand">
+      <i class="bi bi-graph-up-arrow"></i>
+      <span class="brand-text">Ganancias MP</span>
+    </div>
+    <ul class="sidebar-nav">
+      <li>
+        <a href="#" class="sidebar-link active" data-module="dashboard">
+          <i class="bi bi-speedometer2"></i><span class="link-text">Módulo 1 · Dashboard</span>
+        </a>
+      </li>
+      <li>
+        <a href="#" class="sidebar-link" data-module="promociones">
+          <i class="bi bi-stars"></i><span class="link-text">Módulo 2 · Promociones IA</span>
+        </a>
+      </li>
+      <li>
+        <a href="#" class="sidebar-link" id="nav-subir">
+          <i class="bi bi-cloud-arrow-up"></i><span class="link-text">Subir archivos</span>
+        </a>
+      </li>
+    </ul>
+    <div class="sidebar-footer">
+      <button id="theme-toggle" class="btn btn-theme-toggle" title="Cambiar tema claro/oscuro">
+        <i class="bi bi-moon-stars" id="theme-icon"></i>
+        <span class="link-text" id="theme-label">Modo oscuro</span>
+      </button>
+    </div>
+  </nav>
+  <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+
+  <!-- ============ CONTENIDO PRINCIPAL ============ -->
+  <div class="main-wrapper">
+    <header class="app-header">
+      <button class="btn btn-sidebar-toggle d-lg-none" id="sidebar-open-btn" title="Abrir menú">
+        <i class="bi bi-list"></i>
+      </button>
+      <h1 class="header-title">Análisis de Ganancias en Marketplaces + Promociones IA</h1>
+      <div class="header-meta">
+        <i class="bi bi-clock-history"></i>
+        <span>Última actualización: <strong id="ultima-actualizacion">—</strong></span>
+      </div>
+    </header>
+
+    <main class="app-main">
+
+      <!-- ============ MÓDULO 1: DASHBOARD ============ -->
+      <section id="module-dashboard" class="module-section">
+
+        <!-- Tabs de marketplaces -->
+        <ul class="nav nav-tabs marketplace-tabs" id="mp-tabs">
+          <li class="nav-item"><button class="nav-link active" data-mp="mercadolibre">Mercado Libre <span class="badge-estado" id="badge-mercadolibre"></span></button></li>
+          <li class="nav-item"><button class="nav-link" data-mp="amazon">Amazon <span class="badge-estado" id="badge-amazon"></span></button></li>
+          <li class="nav-item"><button class="nav-link" data-mp="walmart">Walmart <span class="badge-estado" id="badge-walmart"></span></button></li>
+          <li class="nav-item"><button class="nav-link" data-mp="tiktok">TikTok <span class="badge-estado" id="badge-tiktok"></span></button></li>
+          <li class="nav-item"><button class="nav-link" data-mp="aliexpress">AliExpress <span class="badge-estado" id="badge-aliexpress"></span></button></li>
+          <li class="nav-item"><button class="nav-link" data-mp="todos"><i class="bi bi-grid-3x3-gap"></i> TODOS</button></li>
+        </ul>
+
+        <!-- Filtro de fechas -->
+        <div class="filtro-fechas card-like">
+          <div class="d-flex flex-wrap align-items-end gap-2">
+            <div>
+              <label for="fecha-desde" class="form-label mb-1">Desde</label>
+              <input type="date" id="fecha-desde" class="form-control form-control-sm">
+            </div>
+            <div>
+              <label for="fecha-hasta" class="form-label mb-1">Hasta</label>
+              <input type="date" id="fecha-hasta" class="form-control form-control-sm">
+            </div>
+            <button id="btn-aplicar-fechas" class="btn btn-sm btn-accent">
+              <i class="bi bi-funnel"></i> Aplicar
+            </button>
+            <button id="btn-limpiar-fechas" class="btn btn-sm btn-outline-secondary">
+              <i class="bi bi-x-circle"></i> Limpiar
+            </button>
+          </div>
+        </div>
+
+        <!-- ===== Vista por marketplace ===== -->
+        <div id="vista-marketplace">
+          <!-- Banner sin datos -->
+          <div id="banner-sin-datos" class="banner-sin-datos d-none">
+            <div class="banner-icon">📂</div>
+            <p id="banner-texto" class="banner-texto"></p>
+            <button id="btn-subir-ahora" class="btn btn-accent btn-lg">
+              ⬆️ SUBIR EXCEL AHORA
+            </button>
+          </div>
+
+          <!-- Resumen rápido -->
+          <div id="resumen-rapido" class="resumen-rapido">
+            <span><i class="bi bi-box-seam"></i> Unidades vendidas: <strong id="info-unidades">0</strong></span>
+            <span><i class="bi bi-receipt"></i> Transacciones: <strong id="info-transacciones">0</strong></span>
+            <span><i class="bi bi-exclamation-triangle"></i> SKUs sin costeo: <strong id="info-skus-sin-costeo">0</strong></span>
+          </div>
+
+          <!-- Grid de 16 tarjetas -->
+          <div class="metricas-grid" id="metricas-grid">
+            <div class="metrica-card" id="card-ventas_totales" title="Suma de ingresos por ventas (sin anulaciones ni reembolsos)">
+              <div class="metrica-icon"><i class="bi bi-cash-stack"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Ventas Totales</span><span class="metrica-valor" data-metrica="ventas_totales">$0.00</span></div>
+            </div>
+            <div class="metrica-card" id="card-ventas_por_publicidad" title="Ventas atribuidas a publicidad (solo Mercado Libre)">
+              <div class="metrica-icon"><i class="bi bi-megaphone"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Ventas por Publicidad</span><span class="metrica-valor" data-metrica="ventas_por_publicidad">$0.00</span></div>
+            </div>
+            <div class="metrica-card" id="card-ventas_organicas" title="Ventas totales menos ventas por publicidad">
+              <div class="metrica-icon"><i class="bi bi-flower1"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Ventas Orgánicas</span><span class="metrica-valor" data-metrica="ventas_organicas">$0.00</span></div>
+            </div>
+            <div class="metrica-card" id="card-ganancia_neta_pct" title="Ganancia neta como porcentaje de las ventas totales. Verde >25%, amarillo 10-25%, rojo <10%">
+              <div class="metrica-icon"><i class="bi bi-percent"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Ganancia Neta %</span><span class="metrica-valor" data-metrica="ganancia_neta_pct">0.0%</span></div>
+            </div>
+            <div class="metrica-card" id="card-ganancia_neta" title="Ventas totales menos todos los costos (adquisición, cargo por venta, envío, publicidad, anulaciones y reembolsos)">
+              <div class="metrica-icon"><i class="bi bi-piggy-bank"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Ganancia Neta</span><span class="metrica-valor" data-metrica="ganancia_neta">$0.00</span></div>
+            </div>
+            <div class="metrica-card card-costo" id="card-cargo_venta" title="Comisiones y cargos cobrados por el marketplace">
+              <div class="metrica-icon"><i class="bi bi-wallet2"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Cargo por Venta</span><span class="metrica-valor" data-metrica="cargo_venta">$0.00</span></div>
+            </div>
+            <div class="metrica-card" id="card-costo_adquisicion" title="Costo de los productos vendidos según el archivo de costeo">
+              <div class="metrica-icon"><i class="bi bi-boxes"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Costo de Adquisición</span><span class="metrica-valor" data-metrica="costo_adquisicion">$0.00</span></div>
+            </div>
+            <div class="metrica-card" id="card-anulaciones" title="Ventas canceladas/anuladas">
+              <div class="metrica-icon"><i class="bi bi-x-octagon"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Anulaciones</span><span class="metrica-valor" data-metrica="anulaciones">$0.00</span></div>
+            </div>
+            <div class="metrica-card" id="card-reembolsos" title="Devoluciones y reembolsos al comprador">
+              <div class="metrica-icon"><i class="bi bi-arrow-counterclockwise"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Reembolsos</span><span class="metrica-valor" data-metrica="reembolsos">$0.00</span></div>
+            </div>
+            <div class="metrica-card" id="card-costo_publicidad" title="Inversión publicitaria (solo Mercado Libre)">
+              <div class="metrica-icon"><i class="bi bi-badge-ad"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Costo de Publicidad</span><span class="metrica-valor" data-metrica="costo_publicidad">$0.00</span></div>
+            </div>
+            <div class="metrica-card" id="card-costo_envio" title="Costos de envío absorbidos">
+              <div class="metrica-icon"><i class="bi bi-truck"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Costo de Envío</span><span class="metrica-valor" data-metrica="costo_envio">$0.00</span></div>
+            </div>
+            <div class="metrica-card" id="card-acos" title="Advertising Cost of Sales: costo de publicidad / ventas por publicidad. Verde <15%, amarillo 15-30%, rojo >30% (solo Mercado Libre)">
+              <div class="metrica-icon"><i class="bi bi-bullseye"></i></div>
+              <div class="metrica-body"><span class="metrica-label">ACOS</span><span class="metrica-valor" data-metrica="acos">N/A - Solo ML</span></div>
+            </div>
+            <div class="metrica-card" id="card-tacos" title="Total Advertising Cost of Sales: costo de publicidad / ventas totales. Verde <10%, amarillo 10-20%, rojo >20% (solo Mercado Libre)">
+              <div class="metrica-icon"><i class="bi bi-crosshair"></i></div>
+              <div class="metrica-body"><span class="metrica-label">TACOS</span><span class="metrica-valor" data-metrica="tacos">N/A - Solo ML</span></div>
+            </div>
+            <div class="metrica-card card-costo" id="card-costos_totales" title="Suma de costos: adquisición + cargo por venta + envío + publicidad (sin anulaciones, reembolsos ni retenciones)">
+              <div class="metrica-icon"><i class="bi bi-calculator"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Costos Totales</span><span class="metrica-valor" data-metrica="costos_totales">$0.00</span></div>
+            </div>
+            <div class="metrica-card" id="card-ret_isr" title="Cálculo informativo: (ventas ÷ 1.16) × 2.5% — no se suma a costos">
+              <div class="metrica-icon"><i class="bi bi-bank"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Retención ISR</span><span class="metrica-valor" data-metrica="ret_isr">$0.00</span></div>
+            </div>
+            <div class="metrica-card" id="card-ret_iva" title="Cálculo informativo: (ventas ÷ 1.16) × 8% — no se suma a costos">
+              <div class="metrica-icon"><i class="bi bi-bank2"></i></div>
+              <div class="metrica-body"><span class="metrica-label">Retención IVA</span><span class="metrica-valor" data-metrica="ret_iva">$0.00</span></div>
+            </div>
+          </div>
+
+          <!-- Tabla de transacciones -->
+          <div class="card-like mt-3">
+            <div class="d-flex justify-content-between align-items-center flex-wrap gap-2 mb-2">
+              <h5 class="mb-0"><i class="bi bi-table"></i> Transacciones</h5>
+              <button class="btn btn-sm btn-outline-accent" id="btn-export-dashboard">
+                <i class="bi bi-file-earmark-excel"></i> Exportar Excel
+              </button>
+            </div>
+            <div class="table-responsive">
+              <table id="tabla-transacciones" class="table table-striped table-hover w-100">
+                <thead>
+                  <tr>
+                    <th>Fecha</th>
+                    <th>SKU</th>
+                    <th>Producto</th>
+                    <th>Unidades</th>
+                    <th>Ingreso</th>
+                    <th>Comisión</th>
+                    <th>Envío</th>
+                    <th>Anulación</th>
+                    <th>Reembolso</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <!-- ===== Vista TODOS ===== -->
+        <div id="vista-todos" class="d-none">
+          <div class="card-like">
+            <h5><i class="bi bi-grid-3x3-gap"></i> Tabla comparativa por marketplace</h5>
+            <div class="table-responsive">
+              <table id="tabla-comparativa" class="table table-bordered table-sm">
+                <thead id="comparativa-head"></thead>
+                <tbody id="comparativa-body"></tbody>
+              </table>
+            </div>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-lg-6">
+              <div class="card-like chart-card">
+                <h6><i class="bi bi-bar-chart"></i> Ventas por marketplace</h6>
+                <div class="chart-container"><canvas id="chart-ventas-mp"></canvas></div>
+              </div>
+            </div>
+            <div class="col-lg-6">
+              <div class="card-like chart-card">
+                <h6><i class="bi bi-pie-chart"></i> Distribución de ganancias</h6>
+                <div class="chart-container"><canvas id="chart-ganancias"></canvas></div>
+              </div>
+            </div>
+            <div class="col-12">
+              <div class="card-like chart-card">
+                <h6><i class="bi bi-graph-up"></i> Ventas diarias combinadas</h6>
+                <div class="chart-container chart-container-lg"><canvas id="chart-ventas-diarias"></canvas></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- ============ MÓDULO 2: PROMOCIONES ============ -->
+      <section id="module-promociones" class="module-section d-none">
+        <div class="alert alert-promo d-flex align-items-center gap-2" role="alert">
+          <i class="bi bi-stars fs-5"></i>
+          <div>Recomendaciones generadas cruzando ventas, costeo e inventarios Full/FBA. Exporta cada panel a Excel o imprime a PDF.</div>
+        </div>
+
+        <div class="accordion promo-accordion" id="accordion-promos">
+          <div class="accordion-item" id="panel1-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#panel1-body-wrap">
+                <i class="bi bi-trophy me-2"></i> Panel 1 · Top ventas con existencias
+              </button>
+            </h2>
+            <div id="panel1-body-wrap" class="accordion-collapse collapse show" data-bs-parent="#accordion-promos">
+              <div class="accordion-body">
+                <div class="panel-actions no-print">
+                  <button class="btn btn-sm btn-outline-accent btn-export" data-panel="panel1"><i class="bi bi-file-earmark-excel"></i> Exportar Excel</button>
+                  <button class="btn btn-sm btn-outline-secondary btn-print"><i class="bi bi-printer"></i> Imprimir/PDF</button>
+                </div>
+                <div class="table-responsive"><table id="tabla-panel1" class="table table-striped table-hover w-100"></table></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item" id="panel2-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#panel2-body-wrap">
+                <i class="bi bi-snow me-2"></i> Panel 2 · Productos sin ventas (capital inmovilizado)
+              </button>
+            </h2>
+            <div id="panel2-body-wrap" class="accordion-collapse collapse" data-bs-parent="#accordion-promos">
+              <div class="accordion-body">
+                <div class="panel-actions no-print">
+                  <button class="btn btn-sm btn-outline-accent btn-export" data-panel="panel2"><i class="bi bi-file-earmark-excel"></i> Exportar Excel</button>
+                  <button class="btn btn-sm btn-outline-secondary btn-print"><i class="bi bi-printer"></i> Imprimir/PDF</button>
+                </div>
+                <div class="table-responsive"><table id="tabla-panel2" class="table table-striped table-hover w-100"></table></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item" id="panel3-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#panel3-body-wrap">
+                <i class="bi bi-arrow-repeat me-2"></i> Panel 3 · Rotación lenta (1-5 ventas)
+              </button>
+            </h2>
+            <div id="panel3-body-wrap" class="accordion-collapse collapse" data-bs-parent="#accordion-promos">
+              <div class="accordion-body">
+                <div class="panel-actions no-print">
+                  <button class="btn btn-sm btn-outline-accent btn-export" data-panel="panel3"><i class="bi bi-file-earmark-excel"></i> Exportar Excel</button>
+                  <button class="btn btn-sm btn-outline-secondary btn-print"><i class="bi bi-printer"></i> Imprimir/PDF</button>
+                </div>
+                <div class="table-responsive"><table id="tabla-panel3" class="table table-striped table-hover w-100"></table></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item" id="panel4-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#panel4-body-wrap">
+                <i class="bi bi-shop me-2"></i> Panel 4 · Sobreinventario en sucursal
+              </button>
+            </h2>
+            <div id="panel4-body-wrap" class="accordion-collapse collapse" data-bs-parent="#accordion-promos">
+              <div class="accordion-body">
+                <div class="panel-actions no-print">
+                  <button class="btn btn-sm btn-outline-accent btn-export" data-panel="panel4"><i class="bi bi-file-earmark-excel"></i> Exportar Excel</button>
+                  <button class="btn btn-sm btn-outline-secondary btn-print"><i class="bi bi-printer"></i> Imprimir/PDF</button>
+                </div>
+                <div class="table-responsive"><table id="tabla-panel4" class="table table-striped table-hover w-100"></table></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item" id="panel5-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#panel5-body-wrap">
+                <i class="bi bi-lightning-charge me-2"></i> Panel 5 · Stock en Full/FBA con costo de almacenaje
+              </button>
+            </h2>
+            <div id="panel5-body-wrap" class="accordion-collapse collapse" data-bs-parent="#accordion-promos">
+              <div class="accordion-body">
+                <div class="panel-actions no-print">
+                  <button class="btn btn-sm btn-outline-accent btn-export" data-panel="panel5"><i class="bi bi-file-earmark-excel"></i> Exportar Excel</button>
+                  <button class="btn btn-sm btn-outline-secondary btn-print"><i class="bi bi-printer"></i> Imprimir/PDF</button>
+                </div>
+                <div class="table-responsive"><table id="tabla-panel5" class="table table-striped table-hover w-100"></table></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="accordion-item" id="panel6-item">
+            <h2 class="accordion-header">
+              <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#panel6-body-wrap">
+                <i class="bi bi-stars me-2"></i> Panel 6 · Estrategias combinadas
+              </button>
+            </h2>
+            <div id="panel6-body-wrap" class="accordion-collapse collapse" data-bs-parent="#accordion-promos">
+              <div class="accordion-body">
+                <div class="panel-actions no-print">
+                  <button class="btn btn-sm btn-outline-accent btn-export" data-panel="panel6"><i class="bi bi-file-earmark-excel"></i> Exportar Excel</button>
+                  <button class="btn btn-sm btn-outline-secondary btn-print"><i class="bi bi-printer"></i> Imprimir/PDF</button>
+                </div>
+                <div class="row g-3">
+                  <div class="col-md-6">
+                    <div class="card-like panel6-card">
+                      <h6><i class="bi bi-gift"></i> Bundles sugeridos</h6>
+                      <div id="panel6-bundles" class="panel6-lista"></div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="card-like panel6-card">
+                      <h6><i class="bi bi-sun"></i> Ofertas del día</h6>
+                      <div id="panel6-ofertas" class="panel6-lista"></div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="card-like panel6-card panel6-alerta">
+                      <h6><i class="bi bi-exclamation-triangle"></i> Alertas de riesgo financiero</h6>
+                      <div id="panel6-alertas" class="panel6-lista"></div>
+                    </div>
+                  </div>
+                  <div class="col-md-6">
+                    <div class="card-like panel6-card panel6-top5">
+                      <h6><i class="bi bi-list-ol"></i> Top 5 acciones urgentes</h6>
+                      <div id="panel6-top5" class="panel6-lista"></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- ============ MODAL UPLOAD ============ -->
+  <div class="modal fade" id="modal-upload" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-cloud-arrow-up"></i> Subir archivo Excel</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <div class="mb-3">
+            <label for="upload-tipo" class="form-label">Tipo de archivo</label>
+            <select id="upload-tipo" class="form-select">
+              <option value="ventas_mercadolibre">Ventas — Mercado Libre</option>
+              <option value="ventas_amazon">Ventas — Amazon</option>
+              <option value="ventas_walmart">Ventas — Walmart</option>
+              <option value="ventas_tiktok">Ventas — TikTok</option>
+              <option value="ventas_aliexpress">Ventas — AliExpress</option>
+              <option value="publicidad_mercadolibre">Publicidad — Mercado Libre</option>
+              <option value="costeo">Costeo de productos</option>
+              <option value="inventario_full_ml">Inventario Full — Mercado Libre</option>
+              <option value="inventario_fba_amazon">Inventario FBA — Amazon</option>
+              <option value="historico_promociones">Histórico de promociones</option>
+            </select>
+          </div>
+          <div id="drop-zone" class="drop-zone">
+            <i class="bi bi-file-earmark-spreadsheet drop-icon"></i>
+            <p class="mb-1"><strong>Arrastra tu archivo aquí</strong> o haz clic para seleccionarlo</p>
+            <p class="text-muted small mb-0">Formatos aceptados: .xlsx, .xls, .csv (máx. 25 MB)</p>
+            <input type="file" id="upload-file" accept=".xlsx,.xls,.csv" class="d-none">
+          </div>
+          <div id="upload-file-info" class="upload-file-info d-none">
+            <i class="bi bi-file-earmark-check"></i> <span id="upload-file-name"></span>
+          </div>
+          <div id="upload-progress-wrap" class="progress mt-3 d-none" style="height: 18px;">
+            <div id="upload-progress" class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 0%">0%</div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-accent" id="btn-upload-start" disabled>
+            <i class="bi bi-upload"></i> Subir y analizar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ MODAL MAPEO DE COLUMNAS ============ -->
+  <div class="modal fade" id="modal-mapeo" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><i class="bi bi-arrow-left-right"></i> Mapeo de columnas</h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small">
+            Archivo: <strong id="mapeo-tipo-label"></strong> · <span id="mapeo-total-rows"></span> filas detectadas.
+            Verifica que cada columna del archivo corresponda al campo correcto antes de importar.
+          </p>
+          <h6><i class="bi bi-diagram-3"></i> Asignación de campos</h6>
+          <div class="table-responsive">
+            <table class="table table-sm table-bordered" id="tabla-mapeo">
+              <thead><tr><th>Columna del archivo</th><th>Campo destino</th></tr></thead>
+              <tbody></tbody>
+            </table>
+          </div>
+          <h6 class="mt-3"><i class="bi bi-eye"></i> Vista previa (primeras 8 filas)</h6>
+          <div class="table-responsive">
+            <table class="table table-sm table-striped table-bordered" id="tabla-preview"></table>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Cancelar</button>
+          <button type="button" class="btn btn-accent" id="btn-mapeo-confirm">
+            <i class="bi bi-check2-circle"></i> Confirmar e importar
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============ TOASTS ============ -->
+  <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toast-container"></div>
+
+  <!-- jQuery + DataTables -->
+  <script src="https://code.jquery.com/jquery-3.7.1.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.8/js/jquery.dataTables.min.js"></script>
+  <script src="https://cdn.datatables.net/1.13.8/js/dataTables.bootstrap5.min.js"></script>
+  <!-- Bootstrap JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <!-- Chart.js 4 -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <!-- App -->
+  <script src="js/charts.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/dashboard.js"></script>
+  <script src="js/upload.js"></script>
+  <script src="js/promociones.js"></script>
+</body>
+</html>
