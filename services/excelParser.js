@@ -359,7 +359,79 @@ const processRows = (fileType, rows, mapping) => {
         return r;
       }).filter((r) => r.fecha || r.ingreso !== 0 || r.unidades !== 0);
 
-    case 'ventas_amazon':
+    case 'ventas_amazon': {
+      // Formato NUEVO: reporte de transacciones "Transacciones por periodo de tiempo" (CSV).
+      // Se detecta por la columna 'Tipo de transacción'. Reglas:
+      // - 'Pago del pedido' → venta: ingreso = cargos del producto + reembolsos promocionales,
+      //   comisión = |Tarifas de Amazon|, envío = −Otros (lo que el cliente pagó de envío).
+      // - 'Tarifas de servicio': publicidad → ads (costo_publicidad); Easy Ship → envío;
+      //   suscripción/almacenamiento/otras → cargo por venta (son cargos del marketplace).
+      // - 'Servicios de envío adquiridos' → envío. Se ignoran transferencias
+      //   ('Pagado a Amazon | Repago al vendedor') y retenciones ISR/IVA (tipo 'Otros').
+      const esNuevoAmazon = rows.length && rows[0] &&
+        Object.keys(rows[0]).some((k) => norm(k) === norm('Tipo de transacción'));
+      if (esNuevoAmazon) {
+        const col = (row, nombre) => {
+          const k = Object.keys(row).find((kk) => norm(kk) === norm(nombre));
+          return k ? row[k] : null;
+        };
+        const parseFechaDMA = (v) => {
+          const m = String(v || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (!m) return parseSpanishDate(v);
+          return `${m[3]}-${m[2].padStart(2, '0')}-${m[1].padStart(2, '0')}`;
+        };
+        const base = (fecha, estado) => ({
+          marketplace: 'amazon', fecha, sku: '', producto: '', unidades: 0, ingreso: 0,
+          comision: 0, envio: 0, anulacion: 0, reembolso: 0, ret_isr: 0, ret_iva: 0,
+          venta_por_publicidad: 0, estado,
+        });
+        const out = [];
+        for (const row of rows) {
+          const tipo = String(col(row, 'Tipo de transacción') || '').trim();
+          const detalle = String(col(row, 'Detalles del producto') || '').trim();
+          const fecha = parseFechaDMA(col(row, 'Fecha'));
+          const estado = String(col(row, 'Estatus de la transacción') || '').trim();
+          const cargos = normalizeNumber(col(row, 'Total de cargos del producto'));
+          const promo = normalizeNumber(col(row, 'Total de reembolsos promocionales'));
+          const tarifas = normalizeNumber(col(row, 'Tarifas de Amazon'));
+          const otros = normalizeNumber(col(row, 'Otros'));
+          if (!fecha) continue;
+          if (tipo === 'Pago del pedido') {
+            const r = base(fecha, estado);
+            r.producto = detalle;
+            r.unidades = 1; // el reporte no trae cantidad: 1 por pedido
+            r.ingreso = cargos + promo;
+            r.comision = Math.abs(tarifas);
+            r.envio = -otros; // envío cobrado al cliente (resta al costo de envío)
+            out.push(r);
+          } else if (tipo === 'Tarifas de servicio') {
+            if (/publicidad/i.test(detalle)) {
+              out.push({
+                __esPublicidad: true, marketplace: 'amazon', fecha, sku: '',
+                inversion: Math.abs(tarifas), ventas_generadas: 0, clicks: 0, impresiones: 0,
+              });
+            } else if (/easy ship|shipping/i.test(detalle)) {
+              const r = base(fecha, 'Servicio de envío');
+              r.producto = detalle;
+              r.envio = Math.abs(tarifas);
+              out.push(r);
+            } else {
+              const r = base(fecha, 'Cargo del marketplace');
+              r.producto = detalle;
+              r.comision = Math.abs(tarifas);
+              out.push(r);
+            }
+          } else if (tipo === 'Servicios de envío adquiridos por medio de Amazon') {
+            const r = base(fecha, 'Servicio de envío');
+            r.producto = detalle;
+            r.envio = Math.abs(cargos) + Math.abs(otros);
+            out.push(r);
+          }
+          // Transferencias y retenciones ISR/IVA reales: fuera (las retenciones
+          // ya se calculan solas y NO entran a costos por regla del usuario).
+        }
+        return out;
+      }
       return rows.map((row) => {
         // Regla Amazon: reporte agregado por MSKU/mes.
         // Los costos de almacenamiento/retiro son cargos del marketplace:
@@ -391,6 +463,7 @@ const processRows = (fileType, rows, mapping) => {
           estado: '',
         };
       }).filter((r) => r.sku || r.ingreso !== 0 || r.unidades !== 0);
+    }
 
     case 'ventas_tiktok': {
       // Regla TikTok: montos (ingreso/envío/reembolso) son a NIVEL ORDEN y se repiten

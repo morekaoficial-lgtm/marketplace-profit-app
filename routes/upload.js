@@ -68,11 +68,21 @@ router.post('/upload/confirm', (req, res) => {
     let marketplaces = [];
     const mp = marketplaceDeVentas(fileType);
     if (mp) {
-      insertSales(mp, records);
+      // Algunos reportes de ventas (p. ej. el nuevo de Amazon) traen filas de
+      // publicidad embebidas, marcadas con __esPublicidad por el parser.
+      const adsExtra = records
+        .filter((r) => r.__esPublicidad)
+        .map((r) => {
+          const { __esPublicidad, ...rest } = r;
+          return rest;
+        });
+      const ventasRows = records.filter((r) => !r.__esPublicidad);
+      insertSales(mp, ventasRows);
+      if (adsExtra.length) insertAds(adsExtra, [mp]);
       marketplaces = [mp];
       updatePreciosEstimados();
     } else if (fileType === 'publicidad_mercadolibre') {
-      insertAds(records);
+      insertAds(records, ['mercadolibre', 'mercadolibre_pct']);
       marketplaces = ['mercadolibre'];
     } else if (fileType === 'costeo') {
       insertCosteo(records);

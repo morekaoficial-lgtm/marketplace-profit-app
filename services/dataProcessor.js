@@ -121,12 +121,13 @@ const getMetricas = (marketplace, desde, hasta) => {
     }
   }
 
-  // Costo de publicidad: ML = ads directos + (sentinela porcentaje) ventas_totales_mes × pct
+  // Costo de publicidad: ads directos de cualquier marketplace (p. ej. Amazon)
+  // + (sentinela porcentaje, solo ML) ventas_totales_mes × pct
+  const directos = db.prepare('SELECT fecha, inversion FROM ads WHERE marketplace = ?').all(marketplace);
+  for (const a of directos) {
+    if (enRango(a.fecha, desde, hasta)) m.costo_publicidad += a.inversion || 0;
+  }
   if (marketplace === 'mercadolibre') {
-    const directos = db.prepare("SELECT fecha, inversion FROM ads WHERE marketplace = 'mercadolibre'").all();
-    for (const a of directos) {
-      if (enRango(a.fecha, desde, hasta)) m.costo_publicidad += a.inversion || 0;
-    }
     pctPorMes.forEach((pct, mesNombre) => {
       const idx = MESES_NOMBRES.indexOf(mesNombre);
       if (idx >= 0) m.costo_publicidad += ventasValidasPorMes[idx] * pct;
@@ -349,15 +350,16 @@ const insertSales = (marketplace, records) => {
   setMeta(`ultima_actualizacion_ventas_${marketplace}`, new Date().toISOString());
 };
 
-const insertAds = (records) => {
+const insertAds = (records, limpiar = ['mercadolibre', 'mercadolibre_pct']) => {
   const ins = db.prepare(`INSERT INTO ads (marketplace, fecha, sku, inversion, ventas_generadas, clicks, impresiones)
     VALUES (@marketplace, @fecha, @sku, @inversion, @ventas_generadas, @clicks, @impresiones)`);
+  const marks = limpiar.map(() => '?').join(',');
   const tx = db.transaction((recs) => {
-    db.prepare("DELETE FROM ads WHERE marketplace IN ('mercadolibre','mercadolibre_pct')").run();
+    db.prepare(`DELETE FROM ads WHERE marketplace IN (${marks})`).run(...limpiar);
     for (const r of recs) ins.run(r);
   });
   tx(records);
-  setMeta('ultima_actualizacion_publicidad_mercadolibre', new Date().toISOString());
+  setMeta(`ultima_actualizacion_publicidad_${limpiar[0]}`, new Date().toISOString());
 };
 
 const insertCosteo = (records) => {
