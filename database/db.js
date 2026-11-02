@@ -74,6 +74,13 @@ CREATE TABLE IF NOT EXISTS mappings (
   PRIMARY KEY (file_type, original_column)
 );
 
+CREATE TABLE IF NOT EXISTS contracargos (
+  marketplace TEXT,
+  mes TEXT,              -- 'YYYY-MM'
+  monto REAL,
+  PRIMARY KEY (marketplace, mes)
+);
+
 CREATE TABLE IF NOT EXISTS meta (
   key TEXT PRIMARY KEY,
   value TEXT

@@ -23,6 +23,7 @@ const metricasCeros = () => ({
   acos: null,
   tacos: null,
   costos_totales: 0,
+  contracargos: 0,
   ret_isr: 0,
   ret_iva: 0,
   unidades_vendidas: 0,
@@ -48,10 +49,33 @@ const enRango = (fecha, desde, hasta) => {
   return true;
 };
 
-// Calcula las 16 métricas de un marketplace para un rango de fechas (sin rango = todo)
+// Suma de contracargos (cargo/chargeback manual) cuyo mes 'YYYY-MM' intersecta el rango
+const getContracargosTotal = (marketplace, desde, hasta) => {
+  const rows = marketplace
+    ? db.prepare('SELECT mes, monto FROM contracargos WHERE marketplace = ?').all(marketplace)
+    : db.prepare('SELECT mes, monto FROM contracargos').all();
+  let total = 0;
+  for (const r of rows) {
+    const mes = String(r.mes || '');
+    if (desde && mes < desde.slice(0, 7)) continue;
+    if (hasta && mes > hasta.slice(0, 7)) continue;
+    total += r.monto || 0;
+  }
+  return r2(total);
+};
+
+// Calcula las 17 métricas de un marketplace para un rango de fechas (sin rango = todo)
 const getMetricas = (marketplace, desde, hasta) => {
   const rows = db.prepare('SELECT * FROM sales WHERE marketplace = ?').all(marketplace);
-  if (!rows.length) return { estado: 'sin_datos', metricas: metricasCeros() };
+  const ccTotal = getContracargosTotal(marketplace, desde, hasta);
+  if (!rows.length) {
+    // Sin ventas: los contracargos capturados igual se muestran como gasto
+    const m0 = metricasCeros();
+    m0.contracargos = ccTotal;
+    m0.costos_totales = ccTotal;
+    m0.ganancia_neta = -ccTotal;
+    return { estado: 'sin_datos', metricas: m0 };
+  }
 
   const costeoMap = getCosteoMap();
   // Porcentajes mensuales de publicidad ML (sentinela marketplace='mercadolibre_pct')
@@ -110,11 +134,13 @@ const getMetricas = (marketplace, desde, hasta) => {
   }
 
   m.ventas_organicas = m.ventas_totales - m.ventas_por_publicidad;
+  // Contracargos: gasto adicional capturado manualmente por mes (SPEC-v2 §3)
+  m.contracargos = ccTotal;
   // Regla usuario: ganancia neta = ventas totales − costos totales
-  // (costos totales = adquisición + cargo + envío + publicidad).
+  // (costos totales = adquisición + cargo + envío + publicidad + contracargos).
   // Anulaciones/reembolsos NO se restan aquí: sus ventas ya no cuentan como ingreso.
   m.ganancia_neta = m.ventas_totales - m.costo_adquisicion - m.cargo_venta - m.costo_envio
-    - m.costo_publicidad;
+    - m.costo_publicidad - m.contracargos;
   m.ganancia_neta_pct = m.ventas_totales > 0 ? (m.ganancia_neta / m.ventas_totales) * 100 : 0;
   // Retenciones: SOLO visualización, calculadas sobre la base gravable (ventas ÷ 1.16).
   // NO se suman a costos_totales ni afectan la ganancia neta.
@@ -122,7 +148,8 @@ const getMetricas = (marketplace, desde, hasta) => {
   m.ret_iva = (m.ventas_totales / 1.16) * 0.08;
   // Regla usuario: anulaciones y reembolsos NO se suman a costos totales
   // (se muestran en sus tarjetas 8/9 y sí se restan en la ganancia neta).
-  m.costos_totales = m.costo_adquisicion + m.cargo_venta + m.costo_envio + m.costo_publicidad;
+  m.costos_totales = m.costo_adquisicion + m.cargo_venta + m.costo_envio + m.costo_publicidad
+    + m.contracargos;
   // ACOS/TACOS: solo aplican a Mercado Libre (publicidad)
   if (marketplace === 'mercadolibre') {
     m.acos = m.ventas_por_publicidad > 0 ? (m.costo_publicidad / m.ventas_por_publicidad) * 100 : null;
@@ -133,12 +160,83 @@ const getMetricas = (marketplace, desde, hasta) => {
   // Redondeo de presentación
   const money = ['ventas_totales', 'ventas_por_publicidad', 'ventas_organicas', 'ganancia_neta',
     'cargo_venta', 'costo_adquisicion', 'anulaciones', 'reembolsos', 'costo_publicidad',
-    'costo_envio', 'costos_totales', 'ret_isr', 'ret_iva'];
+    'costo_envio', 'costos_totales', 'contracargos', 'ret_isr', 'ret_iva'];
   for (const k of money) m[k] = r2(m[k]);
   m.ganancia_neta_pct = r1(m.ganancia_neta_pct);
   if (m.acos !== null) m.acos = r1(m.acos);
   if (m.tacos !== null) m.tacos = r1(m.tacos);
   return { estado: 'activo', metricas: m };
+};
+
+// ---------- Comparativa mensual (SPEC-v2 §4): mes actual vs mes anterior ----------
+
+const rangoMes = (y, mIdx) => {
+  const mm = String(mIdx + 1).padStart(2, '0');
+  const ultimo = new Date(Date.UTC(y, mIdx + 1, 0)).getUTCDate();
+  return { desde: `${y}-${mm}-01`, hasta: `${y}-${mm}-${ultimo}`, clave: `${y}-${mm}` };
+};
+
+// Ventas diarias (solo filas de venta válidas) de un marketplace o de todos (null)
+const getVentasDiarias = (marketplace, desde, hasta) => {
+  const rows = marketplace
+    ? db.prepare('SELECT fecha, ingreso, anulacion, reembolso FROM sales WHERE marketplace = ?').all(marketplace)
+    : db.prepare('SELECT fecha, ingreso, anulacion, reembolso FROM sales').all();
+  const porDia = new Map();
+  for (const r of rows) {
+    if (!r.fecha || !enRango(r.fecha, desde, hasta)) continue;
+    if (esAnulReembolsoPuro(r)) continue;
+    const dia = String(r.fecha).slice(0, 10);
+    porDia.set(dia, (porDia.get(dia) || 0) + (r.ingreso || 0));
+  }
+  return [...porDia.entries()]
+    .sort((a, b) => a[0].localeCompare(b[0]))
+    .map(([fecha, total]) => ({ fecha, total: r2(total) }));
+};
+
+const getComparativaMensual = (marketplace) => {
+  const hoy = new Date();
+  const y = hoy.getFullYear();
+  const mi = hoy.getMonth();
+  const prev = new Date(y, mi - 1, 1);
+  const ra = rangoMes(y, mi);
+  const rp = rangoMes(prev.getFullYear(), prev.getMonth());
+
+  let mes_actual, mes_anterior;
+  if (marketplace) {
+    mes_actual = getMetricas(marketplace, ra.desde, ra.hasta).metricas;
+    mes_anterior = getMetricas(marketplace, rp.desde, rp.hasta).metricas;
+  } else {
+    // Agregado de todos los marketplaces
+    const sumar = (desde, hasta) => {
+      const t = metricasCeros();
+      for (const mp of MARKETPLACES) {
+        const m = getMetricas(mp, desde, hasta).metricas;
+        for (const k of Object.keys(t)) {
+          if (k === 'acos' || k === 'tacos' || k === 'ganancia_neta_pct') continue;
+          t[k] += m[k] || 0;
+        }
+      }
+      t.ganancia_neta_pct = t.ventas_totales > 0 ? r1((t.ganancia_neta / t.ventas_totales) * 100) : 0;
+      t.acos = t.ventas_por_publicidad > 0 ? r1((t.costo_publicidad / t.ventas_por_publicidad) * 100) : null;
+      t.tacos = t.ventas_totales > 0 ? r1((t.costo_publicidad / t.ventas_totales) * 100) : null;
+      return t;
+    };
+    mes_actual = sumar(ra.desde, ra.hasta);
+    mes_anterior = sumar(rp.desde, rp.hasta);
+  }
+
+  return {
+    etiquetas: {
+      actual: `${MESES_NOMBRES[mi]} ${y}`,
+      anterior: `${MESES_NOMBRES[prev.getMonth()]} ${prev.getFullYear()}`,
+      actual_mes: ra.clave,
+      anterior_mes: rp.clave,
+    },
+    mes_actual,
+    mes_anterior,
+    ventas_diarias_actual: getVentasDiarias(marketplace, ra.desde, ra.hasta),
+    ventas_diarias_anterior: getVentasDiarias(marketplace, rp.desde, rp.hasta),
+  };
 };
 
 // GET /api/dashboard/:marketplace
@@ -153,7 +251,7 @@ const getDashboard = (marketplace, desde, hasta) => {
       reembolso: r.reembolso, ret_isr: r.ret_isr, ret_iva: r.ret_iva,
       venta_por_publicidad: r.venta_por_publicidad, estado: r.estado,
     }));
-  return { estado, metricas, transacciones };
+  return { estado, metricas, transacciones, comparativa: getComparativaMensual(marketplace) };
 };
 
 // GET /api/dashboard-all — comparativa de los 5 marketplaces + totales + ventas diarias
@@ -184,18 +282,12 @@ const getDashboardAll = (desde, hasta) => {
   }
 
   // Ventas diarias combinadas (solo filas de venta válidas) para la gráfica de línea
-  const porDia = new Map();
-  for (const r of db.prepare('SELECT fecha, ingreso, anulacion, reembolso FROM sales').all()) {
-    if (!r.fecha || !enRango(r.fecha, desde, hasta)) continue;
-    if (esAnulReembolsoPuro(r)) continue;
-    const dia = String(r.fecha).slice(0, 10);
-    porDia.set(dia, (porDia.get(dia) || 0) + (r.ingreso || 0));
-  }
-  const ventas_diarias = [...porDia.entries()]
-    .sort((a, b) => a[0].localeCompare(b[0]))
-    .map(([fecha, total]) => ({ fecha, total: r2(total) }));
+  const ventas_diarias = getVentasDiarias(null, desde, hasta);
 
-  return { por_marketplace, totales, ventas_diarias, activos };
+  return {
+    por_marketplace, totales, ventas_diarias, activos,
+    comparativa: getComparativaMensual(null),
+  };
 };
 
 // GET /api/status — estado de marketplaces y archivos auxiliares
@@ -290,12 +382,30 @@ const insertInventory = (marketplace, records) => {
   setMeta(`ultima_actualizacion_inventario_${marketplace === 'amazon' ? 'fba_amazon' : 'full_ml'}`, new Date().toISOString());
 };
 
+// ---------- Contracargos (SPEC-v2 §3) ----------
+
+const getContracargos = () =>
+  db.prepare('SELECT marketplace, mes, monto FROM contracargos ORDER BY mes DESC, marketplace').all();
+
+const setContracargo = (marketplace, mes, monto) => {
+  if (!MARKETPLACES.includes(marketplace)) throw new Error('Marketplace inválido');
+  if (!/^\d{4}-\d{2}$/.test(String(mes))) throw new Error('Mes inválido (formato YYYY-MM)');
+  const val = Number(monto);
+  if (!Number.isFinite(val) || val < 0) throw new Error('Monto inválido');
+  db.prepare('INSERT OR REPLACE INTO contracargos (marketplace, mes, monto) VALUES (?, ?, ?)')
+    .run(marketplace, mes, r2(val));
+  return { marketplace, mes, monto: r2(val) };
+};
+
 module.exports = {
   MARKETPLACES,
   metricasCeros,
   getMetricas,
   getDashboard,
   getDashboardAll,
+  getComparativaMensual,
+  getContracargos,
+  setContracargo,
   getStatus,
   updatePreciosEstimados,
   insertSales,

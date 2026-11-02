@@ -195,6 +195,7 @@ const KEYWORDS = {
   reembolso: ['reembolso', 'refund'],
   ret_isr: ['isr'],
   ret_iva: ['iva'],
+  contracargo: ['contracargo', 'chargeback'],
 };
 
 // Campos canónicos ofrecidos por tipo de archivo (para el modal de mapeo del frontend)
@@ -253,7 +254,30 @@ const parseExcel = (buffer, fileType) => {
   if (!aoa.length) return { headers: [], rows: [], suggestedMapping: {}, preview: [] };
 
   const esFullML = fileType === 'inventario_full_ml';
-  const headerRow = aoa[0];
+
+  // Detección inteligente de la fila de encabezados (SPEC-v2 §2):
+  // los archivos de ventas pueden traer filas de metadatos antes del encabezado
+  // (p. ej. el reporte nuevo de Mercado Libre con 5 filas de resumen).
+  // Se escanean las primeras 10 filas buscando una que contenga los nombres
+  // de columna clave del tipo de archivo.
+  let headerIdx = 0;
+  if (!esFullML) {
+    const HEADER_MARKERS = {
+      ventas_mercadolibre: ['# de venta', 'Fecha de venta'],
+      ventas_amazon: ['Fecha de inicio'],
+      ventas_tiktok: ['Line: SKU'],
+    };
+    const markers = HEADER_MARKERS[fileType];
+    if (markers) {
+      const limite = Math.min(aoa.length, 10);
+      for (let i = 0; i < limite; i++) {
+        const celdas = (aoa[i] || []).map((c) => norm(c == null ? '' : String(c)));
+        const hits = markers.filter((m) => celdas.some((c) => c === norm(m)));
+        if (hits.length === markers.length) { headerIdx = i; break; }
+      }
+    }
+  }
+  const headerRow = aoa[headerIdx];
   // Nombres de columna únicos: duplicados reciben sufijo " (2)", " (3)"...
   const vistos = {};
   const headers = headerRow.map((h, i) => {
@@ -263,7 +287,7 @@ const parseExcel = (buffer, fileType) => {
     return vistos[name] > 1 ? `${name} (${vistos[name]})` : name;
   });
 
-  const dataRows = aoa.slice(esFullML ? 3 : 1);
+  const dataRows = aoa.slice(esFullML ? 3 : headerIdx + 1);
   const rows = [];
   for (const arr of dataRows) {
     if (!arr || arr.every((c) => c == null || c === '')) continue; // saltar filas vacías

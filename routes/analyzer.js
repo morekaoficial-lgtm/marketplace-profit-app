@@ -2,7 +2,7 @@
 const express = require('express');
 const XLSX = require('xlsx');
 
-const { getDashboard, getDashboardAll, MARKETPLACES } = require('../services/dataProcessor');
+const { getDashboard, getDashboardAll, getContracargos, setContracargo, MARKETPLACES } = require('../services/dataProcessor');
 const { getPromociones } = require('../services/promotionEngine');
 
 const router = express.Router();
@@ -35,6 +35,27 @@ router.get('/dashboard-all', (req, res) => {
   } catch (e) {
     console.error('Error en dashboard-all:', e);
     res.status(500).json({ ok: false, error: 'Error al calcular la comparativa.' });
+  }
+});
+
+// GET /api/contracargos — lista de contracargos capturados
+router.get('/contracargos', (req, res) => {
+  try {
+    res.json({ ok: true, contracargos: getContracargos() });
+  } catch (e) {
+    console.error('Error en contracargos:', e);
+    res.status(500).json({ ok: false, error: 'Error al consultar contracargos.' });
+  }
+});
+
+// POST /api/contracargos {marketplace, mes: 'YYYY-MM', monto}
+router.post('/contracargos', (req, res) => {
+  try {
+    const { marketplace, mes, monto } = req.body || {};
+    const guardado = setContracargo(marketplace, mes, monto);
+    res.json({ ok: true, contracargo: guardado });
+  } catch (e) {
+    res.status(400).json({ ok: false, error: e.message || 'Datos inválidos.' });
   }
 });
 

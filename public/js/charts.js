@@ -156,6 +156,136 @@ const Charts = (function () {
     });
   }
 
+  // Métricas comparadas en la gráfica de barras agrupadas (SPEC-v2 §4)
+  const METRICAS_BARRAS = [
+    { key: "ventas_totales", label: "Ventas totales" },
+    { key: "costos_totales", label: "Costos totales" },
+    { key: "ganancia_neta", label: "Ganancia neta" },
+    { key: "cargo_venta", label: "Cargo por venta" },
+    { key: "costo_publicidad", label: "Publicidad" },
+    { key: "contracargos", label: "Contracargos" }
+  ];
+
+  /** Barras agrupadas: 6 métricas del mes actual vs el mes anterior. */
+  function renderComparativaBarras(canvasId, comparativa) {
+    destruir(canvasId);
+    const colores = coloresTexto();
+    const ctx = document.getElementById(canvasId);
+    if (!ctx || !comparativa) return;
+    const act = comparativa.mes_actual || {};
+    const ant = comparativa.mes_anterior || {};
+    const etq = comparativa.etiquetas || { actual: "Mes actual", anterior: "Mes anterior" };
+    instancias[canvasId] = new Chart(ctx, {
+      type: "bar",
+      data: {
+        labels: METRICAS_BARRAS.map(function (m) { return m.label; }),
+        datasets: [
+          {
+            label: etq.actual,
+            data: METRICAS_BARRAS.map(function (m) { return Number(act[m.key]) || 0; }),
+            backgroundColor: "#b07d3a",
+            borderRadius: 5,
+            maxBarThickness: 42
+          },
+          {
+            label: etq.anterior,
+            data: METRICAS_BARRAS.map(function (m) { return Number(ant[m.key]) || 0; }),
+            backgroundColor: "#8a7f68",
+            borderRadius: 5,
+            maxBarThickness: 42
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "bottom", labels: { color: colores.texto, padding: 12 } },
+          tooltip: baseTooltip()
+        },
+        scales: {
+          x: { ticks: { color: colores.texto }, grid: { display: false } },
+          y: {
+            ticks: {
+              color: colores.texto,
+              callback: function (v) { return "$" + Number(v).toLocaleString("en-US"); }
+            },
+            grid: { color: colores.rejilla }
+          }
+        }
+      }
+    });
+  }
+
+  /** Líneas de ventas diarias del mes actual y el anterior, alineadas por día del mes. */
+  function renderDiariasComparativa(canvasId, comparativa) {
+    destruir(canvasId);
+    const colores = coloresTexto();
+    const ctx = document.getElementById(canvasId);
+    if (!ctx || !comparativa) return;
+    const etq = comparativa.etiquetas || { actual: "Mes actual", anterior: "Mes anterior" };
+
+    function porDiaDelMes(serie) {
+      const mapa = {};
+      (serie || []).forEach(function (d) {
+        const dia = Number(String(d.fecha).slice(8, 10));
+        mapa[dia] = (mapa[dia] || 0) + (Number(d.total) || 0);
+      });
+      return mapa;
+    }
+    const actMap = porDiaDelMes(comparativa.ventas_diarias_actual);
+    const antMap = porDiaDelMes(comparativa.ventas_diarias_anterior);
+    const dias = [];
+    for (let i = 1; i <= 31; i++) dias.push(i);
+
+    instancias[canvasId] = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: dias.map(function (d) { return "Día " + d; }),
+        datasets: [
+          {
+            label: etq.actual,
+            data: dias.map(function (d) { return actMap[d] || 0; }),
+            borderColor: "#b07d3a",
+            backgroundColor: "rgba(176, 125, 58, 0.12)",
+            fill: true,
+            tension: 0.25,
+            pointRadius: 1.5,
+            pointBackgroundColor: "#b07d3a"
+          },
+          {
+            label: etq.anterior,
+            data: dias.map(function (d) { return antMap[d] || 0; }),
+            borderColor: "#8a7f68",
+            backgroundColor: "rgba(138, 127, 104, 0.10)",
+            fill: true,
+            tension: 0.25,
+            pointRadius: 1.5,
+            pointBackgroundColor: "#8a7f68"
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        plugins: {
+          legend: { position: "bottom", labels: { color: colores.texto, padding: 12 } },
+          tooltip: baseTooltip()
+        },
+        scales: {
+          x: { ticks: { color: colores.texto, maxTicksLimit: 16 }, grid: { display: false } },
+          y: {
+            ticks: {
+              color: colores.texto,
+              callback: function (v) { return "$" + Number(v).toLocaleString("en-US"); }
+            },
+            grid: { color: colores.rejilla }
+          }
+        }
+      }
+    });
+  }
+
   // Al cambiar de tema se repintan con los datos actuales (dashboard.js re-renderiza)
   document.addEventListener("tema:cambiado", function () {
     document.dispatchEvent(new CustomEvent("graficos:repintar"));
@@ -164,6 +294,8 @@ const Charts = (function () {
   return {
     renderVentasPorMarketplace: renderVentasPorMarketplace,
     renderDistribucionGanancias: renderDistribucionGanancias,
-    renderVentasDiarias: renderVentasDiarias
+    renderVentasDiarias: renderVentasDiarias,
+    renderComparativaBarras: renderComparativaBarras,
+    renderDiariasComparativa: renderDiariasComparativa
   };
 })();

@@ -153,11 +153,9 @@ function initSidebar() {
       document.querySelectorAll(".sidebar-link").forEach(function (l) { l.classList.remove("active"); });
       link.classList.add("active");
       document.getElementById("module-dashboard").classList.toggle("d-none", modulo !== "dashboard");
-      document.getElementById("module-promociones").classList.toggle("d-none", modulo !== "promociones");
+      const seccionPromos = document.getElementById("module-promociones");
+      if (seccionPromos) seccionPromos.classList.toggle("d-none", modulo !== "promociones");
       AppState.moduloActual = modulo;
-      if (modulo === "promociones" && typeof cargarPromociones === "function") {
-        cargarPromociones();
-      }
       cerrarSidebarMovil();
     });
   });
@@ -225,6 +223,5 @@ document.addEventListener("DOMContentLoaded", function () {
     // Inicializar el dashboard con el estado ya disponible
     if (typeof initDashboard === "function") initDashboard();
     if (typeof initUpload === "function") initUpload();
-    if (typeof initPromociones === "function") initPromociones();
   });
 });

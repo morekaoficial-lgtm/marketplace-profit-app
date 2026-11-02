@@ -516,3 +516,28 @@ body {
   .metricas-grid { grid-template-columns: repeat(4, 1fr); }
   .chart-container { height: 260px; }
 }
+
+/* ===== SPEC-v2: comparativa mensual en tarjetas y contracargos ===== */
+.metrica-anterior {
+  display: block;
+  font-size: 0.68rem;
+  color: var(--text-muted);
+  margin-top: 2px;
+  line-height: 1.2;
+}
+.metrica-delta { font-weight: 600; }
+.metrica-delta.delta-bien { color: var(--verde); }
+.metrica-delta.delta-mal  { color: var(--rojo); }
+
+.cc-lista { display: flex; flex-wrap: wrap; gap: 6px; }
+.cc-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  background: var(--rojo-soft);
+  color: var(--rojo);
+  border: 1px solid var(--rojo);
+}
