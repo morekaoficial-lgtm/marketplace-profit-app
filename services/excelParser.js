@@ -360,6 +360,69 @@ const processRows = (fileType, rows, mapping) => {
       }).filter((r) => r.fecha || r.ingreso !== 0 || r.unidades !== 0);
 
     case 'ventas_amazon': {
+      // Formato "ECONOMICS POR SKU" (reporte amzn1.tortuga: una fila por MSKU con
+      // ventas, tarifas, publicidad e ingresos netos del período). Se detecta por
+      // las columnas 'MSKU' + 'Ingresos netos en total'. Reglas:
+      // - fecha = Fecha de finalización (MM/DD/YYYY en este reporte) → cae en el
+      //   mes más reciente del período; el reporte es agregado, no por día.
+      // - ingreso = Ventas netas; reembolso (solo tarjeta) = Ventas − Ventas netas.
+      // - comisión = referencia + gestión FBA + retiros + almacenamiento + admón.
+      //   reembolso − reembolsos a favor (inventario FBA / tarifas de referencia).
+      // - envío = 'Tarifa de costo de envío gestionado por el fabricante'.
+      // - 'Cargo de Sponsored Products' → fila ads (costo_publicidad) por SKU.
+      // - Costo de adquisición: lo añade el dashboard cruzando MSKU con el costeo.
+      const esEconomicsSKU = rows.length && rows[0] &&
+        Object.keys(rows[0]).some((k) => norm(k) === 'msku') &&
+        Object.keys(rows[0]).some((k) => norm(k) === norm('Ingresos netos en total'));
+      if (esEconomicsSKU) {
+        const colE = (row, nombre) => {
+          const k = Object.keys(row).find((kk) => norm(kk) === norm(nombre));
+          return k ? row[k] : null;
+        };
+        const numE = (row, nombre) => Math.abs(normalizeNumber(colE(row, nombre)));
+        const parseFechaMDA = (v) => {
+          const m = String(v || '').trim().match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+          if (!m) return parseSpanishDate(v);
+          return `${m[3]}-${m[1].padStart(2, '0')}-${m[2].padStart(2, '0')}`;
+        };
+        const out = [];
+        for (const row of rows) {
+          const sku = String(colE(row, 'MSKU') || '').trim();
+          const fecha = parseFechaMDA(colE(row, 'Fecha de finalización'));
+          const ventas = numE(row, 'Ventas');
+          const ventasNetas = numE(row, 'Ventas netas');
+          const unidades = normalizeNumber(colE(row, 'Unidades netas vendidas'));
+          const referencia = numE(row, 'Tarifa por referencia en total');
+          const gestionFba = numE(row, 'Tarifas de gestión de Logística de Amazon en total');
+          const retiros = numE(row, 'Tarifas por retiro de inventario de Logística de Amazon en total');
+          const almacen = numE(row, 'Tarifa mensual por almacenamiento de inventario en total');
+          const admReembolso = numE(row, 'Tarifa de administración por reembolso en total');
+          // En este reporte los reembolsos a favor del vendedor vienen NEGATIVOS
+          const reembInventario = normalizeNumber(colE(row, 'Reembolso de inventario de Logística de Amazon en total'));
+          const reembTarifasRef = normalizeNumber(colE(row, 'Reembolsos de tarifas por referencia en total'));
+          const envio = numE(row, 'Tarifa de costo de envío gestionado por el fabricante en total');
+          const ads = numE(row, 'Cargo de Sponsored Products en total');
+          const comision = referencia + gestionFba + retiros + almacen + admReembolso
+            + reembInventario + reembTarifasRef; // los a-favor restan comisión
+          if (!sku && !ventasNetas && !comision && !envio && !ads) continue;
+          if (ventasNetas || unidades || comision || envio) {
+            out.push({
+              marketplace: 'amazon', fecha, sku,
+              producto: String(colE(row, 'ASIN') || '').trim(),
+              unidades, ingreso: ventasNetas, comision, envio,
+              anulacion: 0, reembolso: ventas - ventasNetas > 0 ? ventas - ventasNetas : 0,
+              ret_isr: 0, ret_iva: 0, venta_por_publicidad: 0, estado: 'Reporte por SKU',
+            });
+          }
+          if (ads > 0) {
+            out.push({
+              __esPublicidad: true, marketplace: 'amazon', fecha, sku,
+              inversion: ads, ventas_generadas: 0, clicks: 0, impresiones: 0,
+            });
+          }
+        }
+        return out;
+      }
       // Formato NUEVO: reporte de transacciones "Transacciones por periodo de tiempo" (CSV).
       // Se detecta por la columna 'Tipo de transacción'. Reglas:
       // - 'Pago del pedido' → venta: ingreso = cargos del producto + reembolsos promocionales,
