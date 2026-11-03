@@ -47,3 +47,7 @@ Con los archivos NUEVOS del usuario (en /mnt/agents/upload/):
 - Contracargos: POST 1,000 a mercadolibre mes actual → tarjeta muestra $1,000, costos_totales sube 1,000, ganancia baja 1,000.
 - mes_actual/mes_anterior correctos contra las cifras por mes de arriba.
 - Regresión: viejos formatos siguen importando (ventas_mercadolibre.xlsx.xlsx viejo, ventas_amazon, publicidad, costeo, inventarios).
+
+## Amazon — formato "economics por SKU" (amzn1.tortuga)
+La app acepta también el reporte por SKU de Amazon (una fila por MSKU con Ventas
+netas, tarifas, Sponsored Products e Ingresos netos). Ver excelParser.js.
