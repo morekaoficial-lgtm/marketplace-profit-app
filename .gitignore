@@ -4,3 +4,4 @@ uploads/*
 database/*.db
 .env
 *.xlsx
+database/seed.b64

@@ -15,6 +15,10 @@ const initSqlJs = require('sql.js');
 const DB_DIR = path.join(__dirname);
 if (!fs.existsSync(DB_DIR)) fs.mkdirSync(DB_DIR, { recursive: true });
 const DB_PATH = path.join(DB_DIR, 'app.db');
+// Semilla opcional (solo previsualización): si no hay app.db y existe seed.b64
+// (base64 de una app.db), arranca con esos datos. En el servidor del usuario
+// normalmente ya existe app.db, por lo que la semilla se ignora.
+const SEED_PATH = path.join(DB_DIR, 'seed.b64');
 
 const SCHEMA = `
 CREATE TABLE IF NOT EXISTS sales (
@@ -183,9 +187,13 @@ const db = {
 const dbReady = initSqlJs({
   locateFile: (f) => path.join(path.dirname(require.resolve('sql.js')), f),
 }).then((SQL) => {
-  realDb = fs.existsSync(DB_PATH)
-    ? new SQL.Database(fs.readFileSync(DB_PATH))
-    : new SQL.Database();
+  if (fs.existsSync(DB_PATH)) {
+    realDb = new SQL.Database(fs.readFileSync(DB_PATH));
+  } else if (fs.existsSync(SEED_PATH)) {
+    realDb = new SQL.Database(Buffer.from(fs.readFileSync(SEED_PATH, 'utf8'), 'base64'));
+  } else {
+    realDb = new SQL.Database();
+  }
   realDb.exec(SCHEMA);
   return db;
 });
